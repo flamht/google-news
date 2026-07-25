@@ -43,6 +43,13 @@ export interface CompetitionRow {
   goals: number
 }
 
+export interface ClubEntry {
+  club: string
+  league: string
+  comps: CompetitionRow[]
+  totals: CompetitionRow
+}
+
 export interface WikiPlayer {
   name: string
   fullName?: string
@@ -57,6 +64,7 @@ export interface WikiPlayer {
   games?: number
   goals?: number
   comps?: CompetitionRow[]
+  clubs?: ClubEntry[]
 }
 
 function calcAge(dob: string): number {
@@ -87,45 +95,48 @@ function expandCells(html: string): string[] {
   return cells
 }
 
-function parseCareerTable(html: string): CompetitionRow[] {
-  // Find the first big stats table in the career section
+function parseCareerTable(html: string): { comps: CompetitionRow[]; clubs: ClubEntry[] } {
   const section = html.match(/<h2[^>]*>[^<]*Career statistics[^<]*<\/h2>[\s\S]*?(?=<h2|$)/i)
-  if (!section) return []
+  if (!section) return { comps: [], clubs: [] }
 
   const tables = section[0].match(/<table[^>]*>[\s\S]*?<\/table>/gi)
-  if (!tables) return []
+  if (!tables) return { comps: [], clubs: [] }
 
-  // Find the first table that looks like a stats table (has "Club" header)
   const statsTable = tables.find((t) => /<th[^>]*>[\s\S]*?Club[\s\S]*?<\/th>/i.test(t))
-  if (!statsTable) return []
+  if (!statsTable) return { comps: [], clubs: [] }
 
   const rows = statsTable.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi)
-  if (!rows || rows.length < 3) return []
+  if (!rows || rows.length < 3) return { comps: [], clubs: [] }
 
-  // Parse data rows (skip header rows)
-  const totals: Record<string, { apps: number; goals: number }> = {}
+  const compOrder = ["League", "National Cup", "League Cup", "Europe", "Other"]
+  const grandTotals: Record<string, { apps: number; goals: number }> = {}
+
+  // Per-club: store cumulative stats per competition
+  const clubData: Array<{
+    club: string
+    league: string
+    comps: Record<string, { apps: number; goals: number }>
+  }> = []
   let currentClub = ""
+  let currentLeague = ""
 
   for (let i = 2; i < rows.length; i++) {
     const cells = expandCells(rows[i])
     if (cells.length < 4) continue
     if (/^Total/i.test(cells[0]) || /^Career/i.test(cells[0])) continue
 
-    // First cell is either Club name or Season (continuation)
     const first = cells[0]
     const isSeasonRow = /^\d{4}/.test(first)
 
     if (!isSeasonRow) {
-      currentClub = first.replace(/\(loan\)/g, "").trim()
+      currentClub = first.replace(/\s*\(loan\)\s*/g, "").trim()
+      currentLeague = cells[2] ?? ""
     }
 
-    // Column mapping (15 virtual columns):
-    // 0:Club 1:Season 2:League 3:League_A 4:League_G 5:NatCup_A 6:NatCup_G
-    // 7:LCup_A 8:LCup_G 9:Euro_A 10:Euro_G 11:Other_A 12:Other_G 13:Total_A 14:Total_G
-
     const getVal = (idx: number): number | null => parseIntSafe(cells[idx] ?? "")
+    const leagueLabel = cells[2] && isSeasonRow ? cells[2] : (isSeasonRow ? currentLeague : cells[2] || currentLeague)
 
-    const comps: Array<{ key: string; apps: number | null; goals: number | null }> = [
+    const seasonComps = [
       { key: "League", apps: getVal(3), goals: getVal(4) },
       { key: "National Cup", apps: getVal(5), goals: getVal(6) },
       { key: "League Cup", apps: getVal(7), goals: getVal(8) },
@@ -133,19 +144,57 @@ function parseCareerTable(html: string): CompetitionRow[] {
       { key: "Other", apps: getVal(11), goals: getVal(12) },
     ]
 
-    for (const c of comps) {
+    // Add to grand totals
+    for (const c of seasonComps) {
       if (c.apps !== null) {
-        if (!totals[c.key]) totals[c.key] = { apps: 0, goals: 0 }
-        totals[c.key].apps += c.apps
-        totals[c.key].goals += c.goals ?? 0
+        if (!grandTotals[c.key]) grandTotals[c.key] = { apps: 0, goals: 0 }
+        grandTotals[c.key].apps += c.apps
+        grandTotals[c.key].goals += c.goals ?? 0
+      }
+    }
+
+    // Add to current club
+    if (currentClub) {
+      let clubEntry = clubData.find((e) => e.club === currentClub)
+      if (!clubEntry) {
+        clubEntry = { club: currentClub, league: leagueLabel, comps: {} }
+        clubData.push(clubEntry)
+      }
+      if (leagueLabel) clubEntry.league = leagueLabel
+      for (const c of seasonComps) {
+        if (c.apps !== null) {
+          if (!clubEntry.comps[c.key]) clubEntry.comps[c.key] = { apps: 0, goals: 0 }
+          clubEntry.comps[c.key].apps += c.apps
+          clubEntry.comps[c.key].goals += c.goals ?? 0
+        }
       }
     }
   }
 
-  const order = ["League", "National Cup", "League Cup", "Europe", "Other"]
-  return order
-    .filter((k) => totals[k] && totals[k].apps > 0)
-    .map((k) => ({ label: k, apps: totals[k].apps, goals: totals[k].goals }))
+  const comps = compOrder
+    .filter((k) => grandTotals[k] && grandTotals[k].apps > 0)
+    .map((k) => ({ label: k, apps: grandTotals[k].apps, goals: grandTotals[k].goals }))
+
+  const clubs = clubData
+    .filter((e) => {
+      const total = Object.values(e.comps).reduce((s, c) => s + c.apps, 0)
+      return total > 0
+    })
+    .map((e) => {
+      const clubComps = compOrder
+        .filter((k) => e.comps[k] && e.comps[k].apps > 0)
+        .map((k) => ({ label: k, apps: e.comps[k].apps, goals: e.comps[k].goals }))
+      const totalApps = clubComps.reduce((s, c) => s + c.apps, 0)
+      const totalGoals = clubComps.reduce((s, c) => s + c.goals, 0)
+      return {
+        club: e.club,
+        league: e.league,
+        comps: clubComps,
+        totals: { label: "Total", apps: totalApps, goals: totalGoals },
+      }
+    })
+
+  return { comps, clubs }
 }
 
 function extractInfoboxData($: cheerio.CheerioAPI): Record<string, string> {
@@ -200,9 +249,9 @@ export async function fetchPlayerFromWiki(name: string): Promise<WikiPlayer | nu
   const placeOfBirth = infoboxData["place_of_birth"] || ""
   const nationality = infoboxData["nationality"] || placeOfBirth.split(",").pop()?.trim() || ""
 
-  const comps = fullHtml ? parseCareerTable(fullHtml) : []
-  const totalGames = comps.reduce((s, c) => s + c.apps, 0)
-  const totalGoals = comps.reduce((s, c) => s + c.goals, 0)
+  const parsed = fullHtml ? parseCareerTable(fullHtml) : { comps: [], clubs: [] }
+  const totalGames = parsed.comps.reduce((s, c) => s + c.apps, 0)
+  const totalGoals = parsed.comps.reduce((s, c) => s + c.goals, 0)
 
   return {
     name: title,
@@ -217,6 +266,7 @@ export async function fetchPlayerFromWiki(name: string): Promise<WikiPlayer | nu
     description: description || undefined,
     games: totalGames || undefined,
     goals: totalGoals || undefined,
-    comps: comps.length > 0 ? comps : undefined,
+    comps: parsed.comps.length > 0 ? parsed.comps : undefined,
+    clubs: parsed.clubs.length > 0 ? parsed.clubs : undefined,
   }
 }
