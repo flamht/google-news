@@ -64,26 +64,44 @@ export default function PlayerModal({ playerName, onClose }: PlayerModalProps) {
                       <tr>
                         <th className="px-2 py-1.5 text-left font-medium text-zinc-500 dark:text-zinc-400">Season</th>
                         <th className="px-2 py-1.5 text-left font-medium text-zinc-500 dark:text-zinc-400">Club</th>
-                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500 dark:text-zinc-400">League</th>
-                        <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">G</th>
+                        <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">Lge</th>
+                        <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">GL</th>
+                        <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">Cup</th>
+                        <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">GL</th>
+                        <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">Eur</th>
                         <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">GL</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr className="border-b border-zinc-200 bg-emerald-50 dark:border-zinc-700 dark:bg-emerald-950/30">
-                        <td colSpan={3} className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">Total</td>
-                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.games}</td>
-                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.goals}</td>
+                        <td colSpan={2} className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">Total</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.comps?.find((c) => c.label === "League")?.apps ?? data.games}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.comps?.find((c) => c.label === "League")?.goals ?? data.goals}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{((data.comps?.find((c) => c.label === "National Cup")?.apps ?? 0) + (data.comps?.find((c) => c.label === "League Cup")?.apps ?? 0)) || data.games}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{((data.comps?.find((c) => c.label === "National Cup")?.goals ?? 0) + (data.comps?.find((c) => c.label === "League Cup")?.goals ?? 0)) || data.goals}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.comps?.find((c) => c.label === "Europe")?.apps ?? "-"}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.comps?.find((c) => c.label === "Europe")?.goals ?? "-"}</td>
                       </tr>
-                      {data.seasons.map((s, i) => (
-                        <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
-                          <td className="whitespace-nowrap px-2 py-1.5 text-zinc-800 dark:text-zinc-200">{s.season}</td>
-                          <td className="px-2 py-1.5 text-zinc-800 dark:text-zinc-200">{s.club}</td>
-                          <td className="px-2 py-1.5 text-zinc-400">{s.league}</td>
-                          <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{s.comps.reduce((a, c) => a + c.apps, 0)}</td>
-                          <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{s.comps.reduce((a, c) => a + c.goals, 0)}</td>
-                        </tr>
-                      ))}
+                      {data.seasons.map((s, i) => {
+                        const league = s.comps.find((c) => c.label === "League")
+                        const natCup = s.comps.find((c) => c.label === "National Cup")
+                        const lgCup = s.comps.find((c) => c.label === "League Cup")
+                        const europe = s.comps.find((c) => c.label === "Europe")
+                        const cupApps = (natCup?.apps ?? 0) + (lgCup?.apps ?? 0)
+                        const cupGoals = (natCup?.goals ?? 0) + (lgCup?.goals ?? 0)
+                        return (
+                          <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
+                            <td className="whitespace-nowrap px-2 py-1.5 text-zinc-800 dark:text-zinc-200">{s.season}</td>
+                            <td className="px-2 py-1.5 text-zinc-800 dark:text-zinc-200">{s.club}</td>
+                            <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{league?.apps ?? "-"}</td>
+                            <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{league?.goals ?? "-"}</td>
+                            <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{cupApps || "-"}</td>
+                            <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{cupGoals || "-"}</td>
+                            <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{europe?.apps ?? "-"}</td>
+                            <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{europe?.goals ?? "-"}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
