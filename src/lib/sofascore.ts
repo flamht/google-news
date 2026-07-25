@@ -1,17 +1,18 @@
 import https from "node:https"
 import type { PlayerDetail, SeasonStats } from "./types"
 
-function fetchJson(url: string): Promise<unknown> {
+function fetchJson(url: string, hostname?: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
     const options = {
-      hostname: parsed.hostname,
+      hostname: hostname || parsed.hostname,
       path: parsed.pathname + parsed.search,
       headers: {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
-        Accept: "application/json",
-        Referer: "https://www.sofascore.com/",
-        Origin: "https://www.sofascore.com",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.sofascore.com/",
+        "Origin": "https://www.sofascore.com",
       },
       rejectUnauthorized: false,
       timeout: 8000,
@@ -34,15 +35,27 @@ function fetchJson(url: string): Promise<unknown> {
   })
 }
 
+const hosts = ["api.sofascore.com", "www.sofascore.com", "sofascore.com"]
+
+async function fetchJsonRetry(url: string): Promise<unknown | null> {
+  for (const host of hosts) {
+    try {
+      return await fetchJson(url, host)
+    } catch {}
+  }
+  return null
+}
+
 function normalizeName(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
 }
 
 export async function searchPlayer(name: string): Promise<number | null> {
   try {
-    const data = await fetchJson(
+    const data = await fetchJsonRetry(
       `https://api.sofascore.com/api/v1/search/players/${encodeURIComponent(name)}`,
-    ) as { players?: Array<{ id: number; name: string; team?: { name: string } }> }
+    ) as { players?: Array<{ id: number; name: string; team?: { name: string } }> } | null
+    if (!data) return null
     const players = data?.players ?? []
 
     const normName = normalizeName(name)
@@ -72,8 +85,8 @@ export async function fetchPlayerDetail(name: string): Promise<PlayerDetail | nu
   if (!playerId) return null
 
   const [profileData, statsData] = await Promise.all([
-    fetchJson(`https://api.sofascore.com/api/v1/player/${playerId}`).catch(() => null),
-    fetchJson(`https://api.sofascore.com/api/v1/player/${playerId}/statistics`).catch(() => null),
+    fetchJsonRetry(`https://api.sofascore.com/api/v1/player/${playerId}`),
+    fetchJsonRetry(`https://api.sofascore.com/api/v1/player/${playerId}/statistics`),
   ])
 
   const player = (profileData as any)?.player ?? profileData ?? {}
