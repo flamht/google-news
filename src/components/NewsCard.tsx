@@ -1,0 +1,70 @@
+"use client"
+
+import type { NewsItem } from "@/lib/types"
+
+interface NewsCardProps {
+  item: NewsItem
+  isNew?: boolean
+}
+
+export default function NewsCard({ item, isNew }: NewsCardProps) {
+  const domain = item.source || (() => {
+    try {
+      return new URL(item.url).hostname.replace("www.", "")
+    } catch {
+      return ""
+    }
+  })()
+
+  return (
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`group relative flex gap-3 rounded-xl border p-3 transition-all hover:shadow-md ${
+        isNew
+          ? "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/30"
+          : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+      }`}
+    >
+      {isNew && (
+        <span className="absolute -right-1 -top-1 flex h-3 w-3">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-500" />
+        </span>
+      )}
+
+      {item.thumbnail && (
+        <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg">
+          <img
+            src={item.thumbnail}
+            alt=""
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none"
+            }}
+          />
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <h3 className="line-clamp-2 text-sm font-semibold text-zinc-900 group-hover:text-emerald-700 dark:text-zinc-100 dark:group-hover:text-emerald-400">
+          {item.title}
+        </h3>
+        <p className="mt-1 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">
+          {item.snippet}
+        </p>
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500">
+          <span className="truncate">{domain}</span>
+          {item.date && (
+            <>
+              <span>·</span>
+              <span className="whitespace-nowrap">{item.date}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </a>
+  )
+}
