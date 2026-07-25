@@ -108,10 +108,12 @@ function buildDetail(
   }
 }
 
+const API = "/api/sfc"
+
 export async function fetchPlayerFromBrowser(name: string): Promise<PlayerDetail | null> {
   try {
     const searchRes = await fetch(
-      `https://api.sofascore.com/api/v1/search/players/${encodeURIComponent(name)}`,
+      `${API}/api/v1/search/players/${encodeURIComponent(name)}`,
     )
     if (!searchRes.ok) return null
     const searchData = (await searchRes.json()) as {
@@ -126,8 +128,8 @@ export async function fetchPlayerFromBrowser(name: string): Promise<PlayerDetail
     if (!match) return null
 
     const [profileRes, statsRes] = await Promise.all([
-      fetch(`https://api.sofascore.com/api/v1/player/${match.id}`),
-      fetch(`https://api.sofascore.com/api/v1/player/${match.id}/statistics`),
+      fetch(`${API}/api/v1/player/${match.id}`),
+      fetch(`${API}/api/v1/player/${match.id}/statistics`),
     ])
 
     const [profile, stats] = await Promise.all([
