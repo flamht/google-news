@@ -5,7 +5,7 @@ import type { FetchStatus } from "@/lib/types"
 interface StatusBarProps {
   status: FetchStatus
   lastUpdated: Date | null
-  source: "google" | "rss" | null
+  source: "bing" | "rss" | null
   onRefresh: () => void
 }
 
@@ -49,8 +49,8 @@ export default function StatusBar({ status, lastUpdated, source, onRefresh }: St
         {source && (
           <span className="capitalize">
             Source:{" "}
-            <span className={source === "google" ? "font-medium text-blue-500" : "font-medium text-orange-500"}>
-              {source === "google" ? "Google Search" : "Google RSS"}
+            <span className={source === "bing" ? "font-medium text-blue-500" : "font-medium text-orange-500"}>
+              {source === "bing" ? "Bing News" : "Google RSS"}
             </span>
           </span>
         )}

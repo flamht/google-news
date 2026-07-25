@@ -5,13 +5,46 @@ export interface NewsItem {
   date: string
   snippet: string
   thumbnail?: string
+  summary: string
+  players: string[]
 }
 
 export interface SearchResult {
-  aiOverview: string | null
+  aiOverview: null
   news: NewsItem[]
-  source: "google" | "rss"
+  source: "bing" | "rss"
   query: string
 }
 
 export type FetchStatus = "idle" | "loading" | "ready" | "error"
+
+export interface SeasonStats {
+  seasonName: string
+  tournamentName: string
+  games: number
+  goals: number
+  assists: number
+  minutesPlayed: number
+  rating: number
+}
+
+export interface PlayerDetail {
+  id: number
+  name: string
+  slug: string
+  firstName: string
+  lastName: string
+  teamName: string
+  position: string
+  positionsDetailed: string[]
+  height: number
+  dateOfBirth: string
+  age: number
+  nationality: string
+  jerseyNumber: number
+  preferredFoot: string
+  marketValue: string
+  imageUrl: string
+  seasonStats: SeasonStats[]
+  lastSeasonStats: SeasonStats[]
+}

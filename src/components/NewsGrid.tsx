@@ -6,9 +6,10 @@ import NewsCard from "./NewsCard"
 interface NewsGridProps {
   items: NewsItem[]
   knownUrls?: Set<string>
+  onPlayerClick?: (name: string) => void
 }
 
-export default function NewsGrid({ items, knownUrls }: NewsGridProps) {
+export default function NewsGrid({ items, knownUrls, onPlayerClick }: NewsGridProps) {
   if (items.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-zinc-400">
@@ -28,7 +29,7 @@ export default function NewsGrid({ items, knownUrls }: NewsGridProps) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item) => (
-        <NewsCard key={item.url} item={item} isNew={knownUrls ? !knownUrls.has(item.url) : false} />
+        <NewsCard key={item.url} item={item} isNew={knownUrls ? !knownUrls.has(item.url) : false} onPlayerClick={onPlayerClick} />
       ))}
     </div>
   )

@@ -1,16 +1,35 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import TopicSelector from "@/components/TopicSelector"
 import AIOverview from "@/components/AIOverview"
 import NewsGrid from "@/components/NewsGrid"
 import StatusBar from "@/components/StatusBar"
 import Skeleton from "@/components/Skeleton"
+import PlayerModal from "@/components/PlayerModal"
 import { useNewsPolling } from "@/hooks/useNewsPolling"
 
 export default function Home() {
-  const [selectedType, setSelectedType] = useState<string | null>(null)
-  const [selectedClub, setSelectedClub] = useState<string | null>(null)
+  const [selectedType, setSelectedType] = useState<string | null>("transfer")
+  const [selectedClub, setSelectedClub] = useState<string | null>("arsenal")
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
+
+  useEffect(() => {
+    try {
+      const savedType = localStorage.getItem("footy-type")
+      const savedClub = localStorage.getItem("footy-club")
+      if (savedType !== null) setSelectedType(savedType === "" ? null : savedType)
+      if (savedClub !== null) setSelectedClub(savedClub === "" ? null : savedClub)
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem("footy-type", selectedType ?? "") } catch {}
+  }, [selectedType])
+
+  useEffect(() => {
+    try { localStorage.setItem("footy-club", selectedClub ?? "") } catch {}
+  }, [selectedClub])
 
   const { data, status, error, lastUpdated, refresh } = useNewsPolling({
     type: selectedType,
@@ -75,7 +94,7 @@ export default function Home() {
           {data && (
             <>
               <AIOverview text={data.aiOverview} />
-              <NewsGrid items={data.news} />
+              <NewsGrid items={data.news} onPlayerClick={setSelectedPlayer} />
               <StatusBar
                 status={status}
                 lastUpdated={lastUpdated}
@@ -85,6 +104,9 @@ export default function Home() {
             </>
           )}
         </div>
+      )}
+      {selectedPlayer && (
+        <PlayerModal playerName={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
       )}
     </div>
   )

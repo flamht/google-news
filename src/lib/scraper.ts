@@ -1,5 +1,8 @@
 import * as cheerio from "cheerio"
+import https from "node:https"
+import http from "node:http"
 import type { NewsItem, SearchResult } from "./types"
+import { extractPlayers, verifyPlayerNames } from "./players"
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -11,162 +14,117 @@ function randomUA(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)]
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 8000): Promise<Response> {
-  const controller = new AbortController()
-  const id = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
+function nodeFetch(url: string, timeoutMs = 10000): Promise<{ ok: boolean; text: () => Promise<string> }> {
+  return new Promise((resolve, reject) => {
+    const isHttps = url.startsWith("https")
+    const mod = isHttps ? https : http
+
+    const parsedUrl = new URL(url)
+    const options: Record<string, unknown> = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: "GET",
       headers: {
         "User-Agent": randomUA(),
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        Referer: "https://www.google.com/",
-        "Cache-Control": "no-cache",
       },
-      next: { revalidate: 30 },
+      rejectUnauthorized: false,
+      timeout: timeoutMs,
+    }
+
+    const req = mod.request(options, (res) => {
+      const chunks: Buffer[] = []
+      res.on("data", (chunk: Buffer) => chunks.push(chunk))
+      res.on("end", () => {
+        const body = Buffer.concat(chunks)
+        const status = res.statusCode || 500
+        resolve({
+          ok: status >= 200 && status < 300,
+          text: async () => body.toString("utf-8"),
+        })
+      })
+      res.on("error", reject)
     })
-    return res
-  } finally {
-    clearTimeout(id)
-  }
+
+    req.on("error", reject)
+    req.on("timeout", () => {
+      req.destroy()
+      reject(new Error("Request timed out"))
+    })
+    req.end()
+  })
 }
 
-function parseGoogleSearchHTML(html: string): { aiOverview: string | null; news: NewsItem[] } {
+function parseBingNewsHTML(html: string): NewsItem[] {
   const $ = cheerio.load(html)
-  let aiOverview: string | null = null
+  const items: NewsItem[] = []
+  const seen = new Set<string>()
 
-  const aiSelectors = [
-    'div[data-attrid="sun"]',
-    'div[data-md="198"]',
-    ".gHvOcd",
-    ".iKJnec",
-    ".c2xzTb",
-    ".hgKElc",
-    ".kno-rdesc",
-    'div[role="heading"]:contains("AI Overview")',
-  ]
+  $(".news-card.newsitem.cardcommon").each((_, card) => {
+    const $card = $(card)
 
-  for (const sel of aiSelectors) {
-    const el = $(sel).first()
-    if (el.length) {
-      const text = el.text().trim()
-      if (text && text.length > 20 && !text.includes("AI Overview")) {
-        aiOverview = text
-        break
-      }
-    }
-  }
+    const url = $card.attr("url") || $card.find("a.title").attr("href") || ""
+    if (!url || seen.has(url)) return
+    seen.add(url)
 
-  if (!aiOverview) {
-    $('h2, h3, div[role="heading"]').each((_, el) => {
-      const text = $(el).text().trim().toLowerCase()
-      if (text.includes("ai overview") || text.includes("ai generated") || text.includes("google ai")) {
-        const parent = $(el).closest("div").parent()
-        const contentText = parent.text().trim()
-        if (contentText.length > 50) {
-          aiOverview = contentText
-          return false
-        }
-      }
-    })
-  }
-
-  const newsMap = new Map<string, NewsItem>()
-
-  $("a").each((_, el) => {
-    const href = $(el).attr("href")
-    if (!href) return
-    const match = href.match(/\/url\?q=(https?:\/\/[^&]+)/)
-    if (!match) return
-    const url = decodeURIComponent(match[1])
-    if (newsMap.has(url)) return
-
-    const parent = $(el).closest("div").parent()
-    const title = $(el).text().trim()
-    if (!title || title.length < 10) return
-
-    const snippet = parent.find("span, div").text().trim().slice(0, 300)
-    const date =
-      parent.find("span").text().match(/\d+\s+(year|month|week|day|hour|minute|second)s?\s+ago/i)?.[0] || ""
-
-    newsMap.set(url, { title, url, source: "", date, snippet })
-  })
-
-  $("div.g, div[data-hveid]").each((_, el) => {
-    const titleEl = $(el).find("h3").first()
-    const linkEl = $(el).find("a").first()
-    if (!titleEl.length || !linkEl.length) return
-
+    const titleEl = $card.find("a.title h2")
     const title = titleEl.text().trim()
     if (!title) return
 
-    let url = linkEl.attr("href") || ""
-    const urlMatch = url.match(/\/url\?q=(https?:\/\/[^&]+)/)
-    if (urlMatch) url = decodeURIComponent(urlMatch[1])
+    const source = $card.find("a.title").attr("data-author") || ""
+    const snippet = $card.find(".snippet").attr("title") || $card.find(".snippet").text().trim() || ""
 
-    if (newsMap.has(url)) return
-
-    const snippet = $(el).find(".VwiC3b, [data-sncf], .lEBKkf, span.aCOpRe").first().text().trim().slice(0, 300) || ""
-
-    const citeEl = $(el).find("cite, .UPmit").first().text().trim()
-    const source = citeEl.replace(/^https?:\/\//, "").replace(/\/.*$/, "")
+    const thumbnail = $card.find("img.rms_img").attr("data-src-hq") || ""
+    const thumbUrl = thumbnail ? `https:${thumbnail}` : undefined
 
     let date = ""
-    $(el)
-      .find("span, .LEJwVe")
-      .each((_, span) => {
-        const t = $(span).text().trim()
-        if (/\d+\s+(year|month|week|day|hour|minute|second)s?\s+ago/i.test(t)) {
-          date = t
-          return false
-        }
-      })
+    const dateEl = $card.find("span[aria-label]").last()
+    if (dateEl.length) {
+      const label = dateEl.attr("aria-label") || ""
+      if (label.includes("ago") || label.includes("second") || label.includes("minute") || label.includes("hour") || label.includes("day") || label.includes("week") || label.includes("month") || label.includes("year")) {
+        date = label
+      } else {
+        date = dateEl.text().trim()
+      }
+    }
 
-    const img = $(el).find("img[src^=http]").first().attr("src")
-    const thumbnail = img && !img.includes("gstatic.com") ? img : undefined
+    const firstSentence = snippet.split(/\.\s|!\s|\?\s/)[0]?.trim() || ""
+    const players = extractPlayers(title, snippet)
 
-    newsMap.set(url, { title, url, source, date, snippet, thumbnail })
+    items.push({
+      title,
+      url,
+      source,
+      date,
+      snippet: snippet.slice(0, 300),
+      summary: firstSentence.slice(0, 150) || snippet.slice(0, 150),
+      players,
+      thumbnail: thumbUrl,
+    })
   })
 
-  $("g-section-with-header, div[data-hveid]").each((_, el) => {
-    $(el)
-      .find("a")
-      .each((_, a) => {
-        const href = $(a).attr("href")
-        if (!href) return
-        const url = href.startsWith("http") ? href : ""
-        if (!url || newsMap.has(url)) return
-        const title = $(a).text().trim()
-        if (!title || title.length < 10 || title.length > 200) return
-        const parentDiv = $(a).closest("div")
-        const snippet = parentDiv.text().trim().slice(0, 300)
-        newsMap.set(url, { title, url, source: "", date: "", snippet })
-      })
-  })
-
-  const news = Array.from(newsMap.values())
-  return { aiOverview, news }
+  return items
 }
 
-async function fetchGoogleSearch(query: string): Promise<{ aiOverview: string | null; news: NewsItem[] } | null> {
-  const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&gl=us&hl=en&num=20&source=news`
+async function fetchBingNews(query: string): Promise<NewsItem[]> {
+  const url = `https://www.bing.com/news/search?q=${encodeURIComponent(query)}&qft=sortbydate%3d%221%22`
   try {
-    const res = await fetchWithTimeout(url, 8000)
-    if (!res.ok) return null
+    const res = await nodeFetch(url, 10000)
+    if (!res.ok) return []
     const html = await res.text()
-    if (html.length < 1000) return null
-    return parseGoogleSearchHTML(html)
+    if (html.length < 1000) return []
+    return parseBingNewsHTML(html)
   } catch {
-    return null
+    return []
   }
 }
 
 async function fetchGoogleNewsRSS(query: string): Promise<NewsItem[]> {
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`
   try {
-    const res = await fetchWithTimeout(url, 8000)
+    const res = await nodeFetch(url, 10000)
     if (!res.ok) return []
     const xml = await res.text()
     return parseRSSXML(xml)
@@ -198,8 +156,7 @@ function parseRSSXML(xml: string): NewsItem[] {
     if (pubDate) {
       try {
         const d = new Date(pubDate)
-        const now = Date.now()
-        const diff = now - d.getTime()
+        const diff = Date.now() - d.getTime()
         const mins = Math.floor(diff / 60000)
         const hours = Math.floor(diff / 3600000)
         const days = Math.floor(diff / 86400000)
@@ -211,7 +168,9 @@ function parseRSSXML(xml: string): NewsItem[] {
       }
     }
 
-    items.push({ title, url: link, source, date, snippet, thumbnail })
+    const firstSentence = snippet.split(/\.\s|!\s|\?\s/)[0]?.trim() || ""
+    const players = extractPlayers(title, snippet)
+    items.push({ title, url: link, source, date, snippet, summary: firstSentence.slice(0, 150), players, thumbnail })
   })
 
   return items
@@ -222,33 +181,33 @@ export async function scrapeNews(query: string): Promise<SearchResult> {
     return { aiOverview: null, news: [], source: "rss", query }
   }
 
-  const [searchResult, rssNews] = await Promise.all([
-    fetchGoogleSearch(query),
+  const [bingNews, rssNews] = await Promise.all([
+    fetchBingNews(query),
     fetchGoogleNewsRSS(query),
   ])
 
-  if (searchResult && searchResult.news.length > 0) {
-    const existingUrls = new Set(searchResult.news.map((n) => n.url))
+  const allNews = bingNews.length > 0 ? bingNews : rssNews.slice(0, 50)
+  const source: SearchResult["source"] = bingNews.length > 0 ? "bing" : "rss"
+
+  if (bingNews.length > 0) {
+    const existingUrls = new Set(bingNews.map((n) => n.url))
     for (const item of rssNews) {
       if (!existingUrls.has(item.url)) {
-        searchResult.news.push(item)
+        allNews.push(item)
       }
-    }
-    if (searchResult.news.length > 50) {
-      searchResult.news = searchResult.news.slice(0, 50)
-    }
-    return {
-      aiOverview: searchResult.aiOverview,
-      news: searchResult.news,
-      source: "google",
-      query,
     }
   }
 
-  return {
-    aiOverview: null,
-    news: rssNews.slice(0, 50),
-    source: "rss",
-    query,
+  const result = allNews.slice(0, 50)
+
+  const allNames = new Set(result.flatMap((n) => n.players))
+  if (allNames.size > 0) {
+    const newsText = result.map((n) => `${n.title} ${n.snippet}`).join(" ")
+    const verified = await verifyPlayerNames(Array.from(allNames), newsText)
+    for (const item of result) {
+      item.players = item.players.filter((p) => verified.has(p))
+    }
   }
+
+  return { aiOverview: null, news: result, source, query }
 }
