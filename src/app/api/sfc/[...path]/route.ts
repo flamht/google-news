@@ -12,21 +12,25 @@ export async function GET(
   const url = `https://api.sofascore.com/${path.join("/")}${search}`
 
   try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
-        "Accept": "application/json",
-        "Referer": "https://www.sofascore.com/",
-        "Origin": "https://www.sofascore.com",
-      },
-    })
+    const targetHeaders = {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+      "Accept": "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Referer": "https://www.sofascore.com/",
+      "Origin": "https://www.sofascore.com",
+    }
+
+    const res = await fetch(url, { headers: targetHeaders })
 
     const body = await res.text()
+    console.log(`[sfc] ${res.status} ${url}`)
     return new Response(body, {
       status: res.status,
       headers: {
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
       },
     })
   } catch (err) {
