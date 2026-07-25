@@ -43,6 +43,13 @@ export interface CompetitionRow {
   goals: number
 }
 
+export interface SeasonRow {
+  season: string
+  club: string
+  league: string
+  comps: CompetitionRow[]
+}
+
 export interface ClubEntry {
   club: string
   league: string
@@ -65,6 +72,7 @@ export interface WikiPlayer {
   goals?: number
   comps?: CompetitionRow[]
   clubs?: ClubEntry[]
+  seasons?: SeasonRow[]
 }
 
 function calcAge(dob: string): number {
@@ -95,28 +103,28 @@ function expandCells(html: string): string[] {
   return cells
 }
 
-function parseCareerTable(html: string): { comps: CompetitionRow[]; clubs: ClubEntry[] } {
+function parseCareerTable(html: string): { comps: CompetitionRow[]; clubs: ClubEntry[]; seasons: SeasonRow[] } {
   const section = html.match(/<h2[^>]*>[^<]*Career statistics[^<]*<\/h2>[\s\S]*?(?=<h2|$)/i)
-  if (!section) return { comps: [], clubs: [] }
+  if (!section) return { comps: [], clubs: [], seasons: [] }
 
   const tables = section[0].match(/<table[^>]*>[\s\S]*?<\/table>/gi)
-  if (!tables) return { comps: [], clubs: [] }
+  if (!tables) return { comps: [], clubs: [], seasons: [] }
 
   const statsTable = tables.find((t) => /<th[^>]*>[\s\S]*?Club[\s\S]*?<\/th>/i.test(t))
-  if (!statsTable) return { comps: [], clubs: [] }
+  if (!statsTable) return { comps: [], clubs: [], seasons: [] }
 
   const rows = statsTable.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi)
-  if (!rows || rows.length < 3) return { comps: [], clubs: [] }
+  if (!rows || rows.length < 3) return { comps: [], clubs: [], seasons: [] }
 
   const compOrder = ["League", "National Cup", "League Cup", "Europe", "Other"]
   const grandTotals: Record<string, { apps: number; goals: number }> = {}
 
-  // Per-club: store cumulative stats per competition
   const clubData: Array<{
     club: string
     league: string
     comps: Record<string, { apps: number; goals: number }>
   }> = []
+  const seasonList: SeasonRow[] = []
   let currentClub = ""
   let currentLeague = ""
 
@@ -144,7 +152,6 @@ function parseCareerTable(html: string): { comps: CompetitionRow[]; clubs: ClubE
       { key: "Other", apps: getVal(11), goals: getVal(12) },
     ]
 
-    // Add to grand totals
     for (const c of seasonComps) {
       if (c.apps !== null) {
         if (!grandTotals[c.key]) grandTotals[c.key] = { apps: 0, goals: 0 }
@@ -153,7 +160,6 @@ function parseCareerTable(html: string): { comps: CompetitionRow[]; clubs: ClubE
       }
     }
 
-    // Add to current club
     if (currentClub) {
       let clubEntry = clubData.find((e) => e.club === currentClub)
       if (!clubEntry) {
@@ -168,6 +174,18 @@ function parseCareerTable(html: string): { comps: CompetitionRow[]; clubs: ClubE
           clubEntry.comps[c.key].goals += c.goals ?? 0
         }
       }
+    }
+
+    if (isSeasonRow) {
+      const season = cells[1] || first
+      const clubLabel = currentClub
+      const rowComps = compOrder
+        .filter((k) => seasonComps.find((c) => c.key === k)?.apps !== null)
+        .map((k) => {
+          const c = seasonComps.find((s) => s.key === k)!
+          return { label: k, apps: c.apps ?? 0, goals: c.goals ?? 0 }
+        })
+      seasonList.push({ season, club: clubLabel, league: leagueLabel, comps: rowComps })
     }
   }
 
@@ -194,7 +212,7 @@ function parseCareerTable(html: string): { comps: CompetitionRow[]; clubs: ClubE
       }
     })
 
-  return { comps, clubs }
+  return { comps, clubs, seasons: seasonList }
 }
 
 function extractInfoboxData($: cheerio.CheerioAPI): Record<string, string> {
@@ -249,7 +267,7 @@ export async function fetchPlayerFromWiki(name: string): Promise<WikiPlayer | nu
   const placeOfBirth = infoboxData["place_of_birth"] || ""
   const nationality = infoboxData["nationality"] || placeOfBirth.split(",").pop()?.trim() || ""
 
-  const parsed = fullHtml ? parseCareerTable(fullHtml) : { comps: [], clubs: [] }
+  const parsed = fullHtml ? parseCareerTable(fullHtml) : { comps: [], clubs: [], seasons: [] }
   const totalGames = parsed.comps.reduce((s, c) => s + c.apps, 0)
   const totalGoals = parsed.comps.reduce((s, c) => s + c.goals, 0)
 
@@ -268,5 +286,6 @@ export async function fetchPlayerFromWiki(name: string): Promise<WikiPlayer | nu
     goals: totalGoals || undefined,
     comps: parsed.comps.length > 0 ? parsed.comps : undefined,
     clubs: parsed.clubs.length > 0 ? parsed.clubs : undefined,
+    seasons: parsed.seasons.length > 0 ? parsed.seasons : undefined,
   }
 }

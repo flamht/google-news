@@ -8,16 +8,6 @@ interface PlayerModalProps {
   onClose: () => void
 }
 
-function StatRow({ label, apps, goals, bold }: { label: string; apps: number | string; goals: number | string; bold?: boolean }) {
-  return (
-    <tr className="border-t border-zinc-100 dark:border-zinc-800">
-      <td className={`px-3 py-1 ${bold ? "font-semibold" : "font-medium text-zinc-800 dark:text-zinc-200"}`}>{label}</td>
-      <td className={`px-3 py-1 text-right ${bold ? "font-semibold" : "text-zinc-600 dark:text-zinc-400"}`}>{apps}</td>
-      <td className={`px-3 py-1 text-right ${bold ? "font-semibold" : "text-zinc-600 dark:text-zinc-400"}`}>{goals}</td>
-    </tr>
-  )
-}
-
 export default function PlayerModal({ playerName, onClose }: PlayerModalProps) {
   const [data, setData] = useState<WikiPlayer | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,53 +55,34 @@ export default function PlayerModal({ playerName, onClose }: PlayerModalProps) {
               {data.currentTeam && <div className="col-span-2"><div className="text-[10px] uppercase tracking-wider text-zinc-400">Team</div><div className="font-medium text-zinc-800 dark:text-zinc-200">{data.currentTeam}</div></div>}
             </div>
 
-            {data.clubs && data.clubs.length > 0 && (
+            {data.seasons && data.seasons.length > 0 && (
               <div className="mx-6 mt-4">
-                <div className="mb-1.5 text-[10px] uppercase tracking-wider text-zinc-400">Career by club</div>
-                <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
+                <div className="mb-1.5 text-[10px] uppercase tracking-wider text-zinc-400">By season</div>
+                <div className="max-h-60 overflow-y-auto rounded-xl border border-zinc-200 dark:border-zinc-700">
                   <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-zinc-50 dark:bg-zinc-800/50">
-                        <th className="px-3 py-1.5 text-left font-medium text-zinc-500 dark:text-zinc-400">Club</th>
-                        <th className="px-3 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">Apps</th>
-                        <th className="px-3 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">Goals</th>
+                    <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-800/50">
+                      <tr>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500 dark:text-zinc-400">Season</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500 dark:text-zinc-400">Club</th>
+                        <th className="px-2 py-1.5 text-left font-medium text-zinc-500 dark:text-zinc-400">League</th>
+                        <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">G</th>
+                        <th className="px-2 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">GL</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.clubs.map((e) => (
-                        <tr key={e.club} className="border-t border-zinc-100 dark:border-zinc-800">
-                          <td className="px-3 py-1.5">
-                            <div className="font-medium text-zinc-800 dark:text-zinc-200">{e.club}</div>
-                            <div className="text-[10px] text-zinc-400">{e.league}</div>
-                          </td>
-                          <td className="px-3 py-1.5 text-right align-bottom text-zinc-600 dark:text-zinc-400">{e.totals.apps}</td>
-                          <td className="px-3 py-1.5 text-right align-bottom text-zinc-600 dark:text-zinc-400">{e.totals.goals}</td>
+                      {data.seasons.map((s, i) => (
+                        <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
+                          <td className="whitespace-nowrap px-2 py-1.5 text-zinc-800 dark:text-zinc-200">{s.season}</td>
+                          <td className="px-2 py-1.5 text-zinc-800 dark:text-zinc-200">{s.club}</td>
+                          <td className="px-2 py-1.5 text-zinc-400">{s.league}</td>
+                          <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{s.comps.reduce((a, c) => a + c.apps, 0)}</td>
+                          <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{s.comps.reduce((a, c) => a + c.goals, 0)}</td>
                         </tr>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {data.comps && data.comps.length > 0 && (
-              <div className="mx-6 mt-3">
-                <div className="mb-1.5 text-[10px] uppercase tracking-wider text-zinc-400">Total by competition</div>
-                <div className="overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-700">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-zinc-50 dark:bg-zinc-800/50">
-                        <th className="px-3 py-1.5 text-left font-medium text-zinc-500 dark:text-zinc-400">Competition</th>
-                        <th className="px-3 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">Apps</th>
-                        <th className="px-3 py-1.5 text-right font-medium text-zinc-500 dark:text-zinc-400">Goals</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.comps.map((c) => <StatRow key={c.label} label={c.label} apps={c.apps} goals={c.goals} />)}
                       <tr className="border-t border-zinc-200 bg-emerald-50 dark:border-zinc-700 dark:bg-emerald-950/30">
-                        <td className="px-3 py-1.5 font-semibold text-emerald-700 dark:text-emerald-400">Total</td>
-                        <td className="px-3 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.games}</td>
-                        <td className="px-3 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.goals}</td>
+                        <td colSpan={3} className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">Total</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.games}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.goals}</td>
                       </tr>
                     </tbody>
                   </table>
