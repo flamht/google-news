@@ -70,6 +70,11 @@ export default function PlayerModal({ playerName, onClose }: PlayerModalProps) {
                       </tr>
                     </thead>
                     <tbody>
+                      <tr className="border-b border-zinc-200 bg-emerald-50 dark:border-zinc-700 dark:bg-emerald-950/30">
+                        <td colSpan={3} className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">Total</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.games}</td>
+                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.goals}</td>
+                      </tr>
                       {data.seasons.map((s, i) => (
                         <tr key={i} className="border-t border-zinc-100 dark:border-zinc-800">
                           <td className="whitespace-nowrap px-2 py-1.5 text-zinc-800 dark:text-zinc-200">{s.season}</td>
@@ -79,11 +84,6 @@ export default function PlayerModal({ playerName, onClose }: PlayerModalProps) {
                           <td className="px-2 py-1.5 text-right text-zinc-600 dark:text-zinc-400">{s.comps.reduce((a, c) => a + c.goals, 0)}</td>
                         </tr>
                       ))}
-                      <tr className="border-t border-zinc-200 bg-emerald-50 dark:border-zinc-700 dark:bg-emerald-950/30">
-                        <td colSpan={3} className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">Total</td>
-                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.games}</td>
-                        <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 dark:text-emerald-400">{data.goals}</td>
-                      </tr>
                     </tbody>
                   </table>
                 </div>

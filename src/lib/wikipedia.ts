@@ -212,6 +212,7 @@ function parseCareerTable(html: string): { comps: CompetitionRow[]; clubs: ClubE
       }
     })
 
+  seasonList.sort((a, b) => b.season.localeCompare(a.season))
   return { comps, clubs, seasons: seasonList }
 }
 
