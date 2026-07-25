@@ -37,7 +37,32 @@ function fetchJson(url: string, hostname?: string): Promise<unknown> {
 
 const hosts = ["api.sofascore.com", "www.sofascore.com", "sofascore.com"]
 
+async function fetchJsonNative(url: string): Promise<unknown | null> {
+  try {
+    const parsed = new URL(url)
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.sofascore.com/",
+        "Origin": "https://www.sofascore.com",
+        "Host": parsed.hostname,
+      },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 async function fetchJsonRetry(url: string): Promise<unknown | null> {
+  for (const host of hosts) {
+    const result = await fetchJsonNative(url)
+    if (result) return result
+  }
   for (const host of hosts) {
     try {
       return await fetchJson(url, host)
