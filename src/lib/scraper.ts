@@ -3,6 +3,7 @@ import https from "node:https"
 import http from "node:http"
 import type { NewsItem, SearchResult } from "./types"
 import { extractPlayers, verifyPlayerNames } from "./players"
+import { extractClubs } from "./clubs"
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
@@ -92,6 +93,7 @@ function parseBingNewsHTML(html: string): NewsItem[] {
 
     const firstSentence = snippet.split(/\.\s|!\s|\?\s/)[0]?.trim() || ""
     const players = extractPlayers(title, snippet)
+    const clubs = extractClubs(title, snippet)
 
     items.push({
       title,
@@ -101,6 +103,7 @@ function parseBingNewsHTML(html: string): NewsItem[] {
       snippet: snippet.slice(0, 300),
       summary: firstSentence.slice(0, 150) || snippet.slice(0, 150),
       players,
+      clubs,
       thumbnail: thumbUrl,
     })
   })
@@ -170,7 +173,8 @@ function parseRSSXML(xml: string): NewsItem[] {
 
     const firstSentence = snippet.split(/\.\s|!\s|\?\s/)[0]?.trim() || ""
     const players = extractPlayers(title, snippet)
-    items.push({ title, url: link, source, date, snippet, summary: firstSentence.slice(0, 150), players, thumbnail })
+    const clubs = extractClubs(title, snippet)
+    items.push({ title, url: link, source, date, snippet, summary: firstSentence.slice(0, 150), players, clubs, thumbnail })
   })
 
   return items

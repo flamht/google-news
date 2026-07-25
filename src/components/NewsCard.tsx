@@ -66,8 +66,16 @@ export default function NewsCard({ item, isNew, onPlayerClick }: NewsCardProps) 
         </div>
       </div>
 
-      {item.players.length > 0 && (
+      {(item.clubs.length > 0 || item.players.length > 0) && (
         <div className="mt-2 flex flex-wrap gap-1">
+          {item.clubs.slice(0, 3).map((club) => (
+            <span
+              key={club}
+              className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-medium text-sky-800 dark:bg-sky-900/40 dark:text-sky-300"
+            >
+              {club}
+            </span>
+          ))}
           {item.players.slice(0, 3).map((player) => (
             <button
               key={player}

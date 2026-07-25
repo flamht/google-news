@@ -7,6 +7,7 @@ export interface NewsItem {
   thumbnail?: string
   summary: string
   players: string[]
+  clubs: string[]
 }
 
 export interface SearchResult {
