@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import type { PlayerDetail } from "@/lib/types"
+import { fetchPlayerFromBrowser } from "@/lib/client-sofascore"
 
 interface PlayerModalProps {
   playerName: string
@@ -16,19 +17,26 @@ export default function PlayerModal({ playerName, onClose }: PlayerModalProps) {
   useEffect(() => {
     setLoading(true)
     setError(false)
-    fetch(`/api/player/${encodeURIComponent(playerName)}`)
-      .then((r) => {
+
+    async function load() {
+      const fromBrowser = await fetchPlayerFromBrowser(playerName)
+      if (fromBrowser) {
+        setData(fromBrowser)
+        setLoading(false)
+        return
+      }
+
+      try {
+        const r = await fetch(`/api/player/${encodeURIComponent(playerName)}`)
         if (!r.ok) throw new Error()
-        return r.json()
-      })
-      .then((d) => {
-        setData(d)
-        setLoading(false)
-      })
-      .catch(() => {
+        setData(await r.json())
+      } catch {
         setError(true)
-        setLoading(false)
-      })
+      }
+      setLoading(false)
+    }
+
+    load()
   }, [playerName])
 
   useEffect(() => {

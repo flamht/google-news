@@ -37,10 +37,15 @@ function fetchJson(url: string, hostname?: string): Promise<unknown> {
 
 const hosts = ["api.sofascore.com", "www.sofascore.com", "sofascore.com"]
 
-async function fetchJsonNative(url: string): Promise<unknown | null> {
+function rewriteUrl(url: string, host: string): string {
+  return url.replace(/\/\/[^/]+/, `//${host}`)
+}
+
+async function fetchJsonNative(url: string, host?: string): Promise<unknown | null> {
   try {
-    const parsed = new URL(url)
-    const res = await fetch(url, {
+    const targetUrl = host ? rewriteUrl(url, host) : url
+    const parsed = new URL(targetUrl)
+    const res = await fetch(targetUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
         "Accept": "application/json",
@@ -60,12 +65,15 @@ async function fetchJsonNative(url: string): Promise<unknown | null> {
 
 async function fetchJsonRetry(url: string): Promise<unknown | null> {
   for (const host of hosts) {
-    const result = await fetchJsonNative(url)
+    const result = await fetchJsonNative(url, host)
     if (result) return result
   }
   for (const host of hosts) {
     try {
       return await fetchJson(url, host)
+    } catch {}
+    try {
+      return await fetchJson(rewriteUrl(url, host))
     } catch {}
   }
   return null
