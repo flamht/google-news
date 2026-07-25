@@ -11,10 +11,15 @@ export async function GET(
   const { name } = await params
   const decoded = decodeURIComponent(name)
 
-  const detail = await fetchPlayerDetail(decoded)
-  if (!detail) {
-    return Response.json({ error: "Player not found" }, { status: 404 })
+  try {
+    const detail = await fetchPlayerDetail(decoded)
+    if (!detail) {
+      console.error(`[player] Player not found on Sofascore: ${decoded}`)
+      return Response.json({ error: "Player not found" }, { status: 404 })
+    }
+    return Response.json(detail)
+  } catch (err) {
+    console.error(`[player] Error fetching ${decoded}:`, err)
+    return Response.json({ error: String(err) }, { status: 500 })
   }
-
-  return Response.json(detail)
 }
